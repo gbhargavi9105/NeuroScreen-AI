@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile storing researcher or participant identity and anonymous study cohort parameters.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique user authentication ID matching auth.uid."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address if authenticated via Google."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User's public or research display name."
+        },
+        "anonymousCohortId": {
+          "type": "string",
+          "description": "Anonymous participant identifier, e.g. NS-8042."
+        },
+        "aliasLabel": {
+          "type": "string",
+          "description": "Optional research cohort label or study group."
+        },
+        "ageBracket": {
+          "type": "string",
+          "description": "Age bracket covariate (e.g., 60 - 69)."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of user profile creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last profile update."
+        }
+      },
+      "required": ["id", "anonymousCohortId"]
+    },
+    "ScreeningSession": {
+      "title": "ScreeningSession",
+      "description": "Complete multimodal assessment record storing handwriting, voice, movement, questionnaire, fusion scores, and explainability attributions.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique session identifier, e.g., SESS-..."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID."
+        },
+        "anonymousCohortId": {
+          "type": "string",
+          "description": "Anonymous research ID at time of screening."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of screening in YYYY-MM-DD."
+        },
+        "time": {
+          "type": "string",
+          "description": "Time of screening."
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Epoch timestamp in milliseconds."
+        },
+        "dayOffset": {
+          "type": "number",
+          "description": "Day offset from baseline longitudinal study."
+        },
+        "overallRiskScore": {
+          "type": "number",
+          "description": "Composite multimodal risk indication score (0-100)."
+        },
+        "riskLevel": {
+          "type": "string",
+          "description": "Screening risk category classification."
+        },
+        "confidenceScore": {
+          "type": "number",
+          "description": "Model confidence percentage (0-100)."
+        },
+        "credibleInterval95": {
+          "type": "array",
+          "description": "Lower and upper bounds of 95% credible interval."
+        },
+        "modalitiesEvaluatedCount": {
+          "type": "number",
+          "description": "Number of active modalities evaluated (1-4)."
+        },
+        "handwritingResults": {
+          "type": "object",
+          "description": "Extracted handwriting and Archimedean spiral kinematic biomarkers."
+        },
+        "voiceResults": {
+          "type": "object",
+          "description": "Extracted voice dysphonia and acoustic perturbation metrics."
+        },
+        "movementResults": {
+          "type": "object",
+          "description": "Extracted motor tapping rhythmicity and fatigue metrics."
+        },
+        "questionnaireResults": {
+          "type": "object",
+          "description": "Behavioral inventory responses and non-motor score."
+        },
+        "multimodalScores": {
+          "type": "object",
+          "description": "Modality-specific probabilities and late-fusion weight allocation."
+        },
+        "explainabilityData": {
+          "type": "object",
+          "description": "SHAP-calibrated feature attributions and counterfactual recommendations."
+        },
+        "clinicalSummary": {
+          "type": "object",
+          "description": "Non-diagnostic clinical research summary and follow-up guidance."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp."
+        }
+      },
+      "required": ["id", "userId", "overallRiskScore", "riskLevel", "confidenceScore"]
+    },
+    "LongitudinalHistory": {
+      "title": "LongitudinalHistory",
+      "description": "Summarized temporal trajectory point for fast longitudinal time-series visualization.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique history identifier."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID."
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Associated screening session ID."
+        },
+        "date": {
+          "type": "string",
+          "description": "Assessment date."
+        },
+        "dayOffset": {
+          "type": "number",
+          "description": "Days since cohort baseline."
+        },
+        "overallScore": {
+          "type": "number",
+          "description": "Overall composite screening score."
+        },
+        "riskLevel": {
+          "type": "string",
+          "description": "Risk indication level."
+        },
+        "confidenceScore": {
+          "type": "number",
+          "description": "Ensemble confidence score."
+        },
+        "spiralTremorIndex": {
+          "type": "number",
+          "description": "Spiral tremor frequency biomarker."
+        },
+        "vocalJitterPercent": {
+          "type": "number",
+          "description": "Cycle-to-cycle acoustic jitter biomarker."
+        },
+        "tappingIrregularity": {
+          "type": "number",
+          "description": "Inter-tap interval variance biomarker."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Clinical or observational study notes."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp."
+        }
+      },
+      "required": ["id", "userId", "sessionId", "date", "overallScore", "riskLevel"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "User profile document restricted strictly to the authenticated account owner."
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": {
+        "$ref": "#/entities/ScreeningSession"
+      },
+      "description": "Multimodal screening sessions and complete biomarker data owned by the user."
+    },
+    "/users/{userId}/longitudinal_history/{historyId}": {
+      "schema": {
+        "$ref": "#/entities/LongitudinalHistory"
+      },
+      "description": "Temporal assessment points for longitudinal tracking owned by the user."
+    }
+  }
+}

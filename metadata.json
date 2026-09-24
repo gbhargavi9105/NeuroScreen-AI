@@ -1,0 +1,6 @@
+{
+  "name": "NeuroScreen AI",
+  "description": "Explainable Multimodal Neurological Screening & Longitudinal Monitoring research prototype analyzing handwriting, voice acoustics, motor signals, and longitudinal behavioral trends.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

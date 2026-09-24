@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // GLOBAL DEFAULT-DENY SAFETY NET
+    // Denies all reads and writes across the entire database unless explicitly granted.
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // REUSABLE SECURITY & AUTHENTICATION PRIMITIVES
+    // =========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // =========================================================================
+    // VALIDATION BLUEPRINT FOR MULTIMODAL SCREENING SESSIONS
+    // Enforces strict schema, identity consistency, and boundary constraints.
+    // =========================================================================
+    function isValidScreeningSession(data) {
+      return data.keys().hasAll(['id', 'userId', 'overallRiskScore', 'riskLevel', 'confidenceScore']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.overallRiskScore is number && data.overallRiskScore >= 0 && data.overallRiskScore <= 100 &&
+             data.riskLevel is string && data.riskLevel.size() <= 64 &&
+             data.confidenceScore is number && data.confidenceScore >= 0 && data.confidenceScore <= 100 &&
+             (!('modalitiesEvaluatedCount' in data) || (data.modalitiesEvaluatedCount is number && data.modalitiesEvaluatedCount >= 0 && data.modalitiesEvaluatedCount <= 10)) &&
+             (!('date' in data) || (data.date is string && data.date.size() <= 32)) &&
+             (!('time' in data) || (data.time is string && data.time.size() <= 32)) &&
+             (!('anonymousCohortId' in data) || (data.anonymousCohortId is string && data.anonymousCohortId.size() <= 64)) &&
+             (!('dayOffset' in data) || data.dayOffset is number) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    // Validation Blueprint for User Profiles
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['id', 'anonymousCohortId']) &&
+             data.keys().hasOnly(['id', 'email', 'displayName', 'anonymousCohortId', 'aliasLabel', 'ageBracket', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.anonymousCohortId is string && data.anonymousCohortId.size() <= 64 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 256)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128)) &&
+             (!('aliasLabel' in data) || (data.aliasLabel is string && data.aliasLabel.size() <= 128)) &&
+             (!('ageBracket' in data) || (data.ageBracket is string && data.ageBracket.size() <= 64)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // Validation Blueprint for Longitudinal Time-Series
+    function isValidLongitudinalItem(data) {
+      return data.keys().hasAll(['id', 'userId', 'sessionId', 'date', 'overallScore', 'riskLevel']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.sessionId is string && data.sessionId.size() <= 128 &&
+             data.date is string && data.date.size() <= 32 &&
+             data.overallScore is number && data.overallScore >= 0 && data.overallScore <= 100 &&
+             data.riskLevel is string && data.riskLevel.size() <= 64 &&
+             (!('confidenceScore' in data) || (data.confidenceScore is number && data.confidenceScore >= 0 && data.confidenceScore <= 100)) &&
+             (!('dayOffset' in data) || data.dayOffset is number) &&
+             (!('spiralTremorIndex' in data) || data.spiralTremorIndex is number) &&
+             (!('vocalJitterPercent' in data) || data.vocalJitterPercent is number) &&
+             (!('tappingIrregularity' in data) || data.tappingIrregularity is number) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1024)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    // =========================================================================
+    // USER DATA SECURITY SPECIFICATION
+    // Restricts all access strictly to authenticated owners matching request.auth.uid
+    // =========================================================================
+    match /users/{userId} {
+      // Individual user profile access
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // Blanket enumeration of research participants is forbidden
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().id == userId;
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().id == existing().id;
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // -----------------------------------------------------------------------
+      // MULTIMODAL SCREENING SESSIONS (/users/{userId}/sessions/{sessionId})
+      // Users can ONLY read and write documents within their own sessions path.
+      // Must be authenticated with request.auth.uid == userId.
+      // -----------------------------------------------------------------------
+      match /sessions/{sessionId} {
+        // Read operations: Only the authenticated owner can retrieve or list sessions
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId) && isValidId(userId);
+
+        // Write operations: Enforces authentication, owner match, valid ID, and schema
+        allow create: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(sessionId) &&
+                         isValidScreeningSession(incoming()) &&
+                         incoming().userId == userId;
+
+        allow update: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(sessionId) &&
+                         isValidScreeningSession(incoming()) &&
+                         incoming().userId == existing().userId;
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(sessionId);
+      }
+
+      // -----------------------------------------------------------------------
+      // LONGITUDINAL TRAJECTORY HISTORY (/users/{userId}/longitudinal_history/{historyId})
+      // Accessible strictly to the authenticated owner.
+      // -----------------------------------------------------------------------
+      match /longitudinal_history/{historyId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(historyId);
+        allow list: if isOwner(userId) && isValidId(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(historyId) &&
+                         isValidLongitudinalItem(incoming()) &&
+                         incoming().userId == userId;
+
+        allow update: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidId(historyId) &&
+                         isValidLongitudinalItem(incoming()) &&
+                         incoming().userId == existing().userId;
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(historyId);
+      }
+    }
+  }
+}
